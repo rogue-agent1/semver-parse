@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
-"""SemVer parser and comparator from scratch."""
-import sys,re
-class SemVer:
-    def __init__(self, s):
-        m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?(?:\+(.+))?$', s)
-        if not m: raise ValueError(f"Invalid semver: {s}")
-        self.major,self.minor,self.patch = int(m[1]),int(m[2]),int(m[3])
-        self.pre = m[4]; self.build = m[5]
-    def __repr__(self): return f"{self.major}.{self.minor}.{self.patch}" + (f"-{self.pre}" if self.pre else "")
-    def _cmp_key(self):
-        pre_key = (0, self.pre.split('.')) if self.pre else (1,)
-        return (self.major, self.minor, self.patch, pre_key)
-    def __lt__(self, o): return self._cmp_key() < o._cmp_key()
-    def __eq__(self, o): return self._cmp_key() == o._cmp_key()
-    def __le__(self, o): return self<o or self==o
-    def bump(self, part):
-        if part=="major": return SemVer(f"{self.major+1}.0.0")
-        if part=="minor": return SemVer(f"{self.major}.{self.minor+1}.0")
-        return SemVer(f"{self.major}.{self.minor}.{self.patch+1}")
-def main():
-    if "--demo" in sys.argv:
-        versions = ["1.0.0","2.1.0","1.0.0-alpha","1.0.0-beta","0.9.9","2.0.0-rc.1","2.0.0"]
-        parsed = [SemVer(v) for v in versions]
-        print("Sorted:", " < ".join(str(v) for v in sorted(parsed)))
-        v = SemVer("1.2.3")
-        print(f"\n{v}.bump(major) = {v.bump('major')}")
-        print(f"{v}.bump(minor) = {v.bump('minor')}")
-        print(f"{v}.bump(patch) = {v.bump('patch')}")
-    elif len(sys.argv)>1:
-        v = SemVer(sys.argv[1])
-        print(f"major={v.major} minor={v.minor} patch={v.patch} pre={v.pre}")
-if __name__=="__main__": main()
+"""semver_parse - Parse, compare, and bump semantic versions."""
+import sys, re
+
+def parse(v):
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?(?:\+(.+))?", v)
+    if not m: raise ValueError(f"Invalid semver: {v}")
+    return (int(m[1]), int(m[2]), int(m[3]), m[4] or "", m[5] or "")
+
+def fmt(t): return f"{t[0]}.{t[1]}.{t[2]}" + (f"-{t[3]}" if t[3] else "") + (f"+{t[4]}" if t[4] else "")
+
+def bump(v, part):
+    p = parse(v)
+    if part == "major": return fmt((p[0]+1, 0, 0, "", ""))
+    if part == "minor": return fmt((p[0], p[1]+1, 0, "", ""))
+    return fmt((p[0], p[1], p[2]+1, "", ""))
+
+def compare(a, b):
+    pa, pb = parse(a), parse(b)
+    for i in range(3):
+        if pa[i] != pb[i]: return 1 if pa[i] > pb[i] else -1
+    return 0
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2: print("Usage: semver_parse <parse|bump|compare> ..."); sys.exit(1)
+    cmd = sys.argv[1]
+    if cmd == "parse": p = parse(sys.argv[2]); print(f"major={p[0]} minor={p[1]} patch={p[2]} pre={p[3]} build={p[4]}")
+    elif cmd == "bump": print(bump(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "patch"))
+    elif cmd == "compare": r = compare(sys.argv[2], sys.argv[3]); print(">" if r > 0 else "<" if r < 0 else "=")
